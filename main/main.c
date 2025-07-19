@@ -46,7 +46,7 @@ ble_spp_server_print_conn_desc(struct ble_gap_conn_desc *desc)
                 desc->peer_id_addr.type);
     print_addr(desc->peer_id_addr.val);
     MODLOG_DFLT(INFO, " conn_itvl=%d conn_latency=%d supervision_timeout=%d "
-                "encrypted=%d authenticated=%d bonded=%d\n",
+                      "encrypted=%d authenticated=%d bonded=%d\n",
                 desc->conn_itvl, desc->conn_latency,
                 desc->supervision_timeout,
                 desc->sec_state.encrypted,
@@ -96,14 +96,14 @@ ble_spp_server_advertise(void)
     fields.name_len = strlen(name);
     fields.name_is_complete = 1;
 
-    fields.uuids16 = (ble_uuid16_t[]) {
-        BLE_UUID16_INIT(BLE_SVC_SPP_UUID16)
-    };
+    fields.uuids16 = (ble_uuid16_t[]){
+        BLE_UUID16_INIT(BLE_SVC_SPP_UUID16)};
     fields.num_uuids16 = 1;
     fields.uuids16_is_complete = 1;
 
     rc = ble_gap_adv_set_fields(&fields);
-    if (rc != 0) {
+    if (rc != 0)
+    {
         MODLOG_DFLT(ERROR, "error setting advertisement data; rc=%d\n", rc);
         return;
     }
@@ -114,7 +114,8 @@ ble_spp_server_advertise(void)
     adv_params.disc_mode = BLE_GAP_DISC_MODE_GEN;
     rc = ble_gap_adv_start(own_addr_type, NULL, BLE_HS_FOREVER,
                            &adv_params, ble_spp_server_gap_event, NULL);
-    if (rc != 0) {
+    if (rc != 0)
+    {
         MODLOG_DFLT(ERROR, "error enabling advertisement; rc=%d\n", rc);
         return;
     }
@@ -141,23 +142,26 @@ ble_spp_server_gap_event(struct ble_gap_event *event, void *arg)
     struct ble_gap_conn_desc desc;
     int rc;
 
-    switch (event->type) {
+    switch (event->type)
+    {
     case BLE_GAP_EVENT_LINK_ESTAB:
         /* A new connection was established or a connection attempt failed. */
         MODLOG_DFLT(INFO, "connection %s; status=%d ",
                     event->link_estab.status == 0 ? "established" : "failed",
                     event->link_estab.status);
-        if (event->link_estab.status == 0) {
+        if (event->link_estab.status == 0)
+        {
             rc = ble_gap_conn_find(event->link_estab.conn_handle, &desc);
             assert(rc == 0);
             ble_spp_server_print_conn_desc(&desc);
-            
+
             /* Send welcome message when connection is established */
             vTaskDelay(pdMS_TO_TICKS(100)); // Small delay to ensure connection is ready
             send_welcome_message(event->link_estab.conn_handle);
         }
         MODLOG_DFLT(INFO, "\n");
-        if (event->link_estab.status != 0 || CONFIG_BT_NIMBLE_MAX_CONNECTIONS > 1) {
+        if (event->link_estab.status != 0 || CONFIG_BT_NIMBLE_MAX_CONNECTIONS > 1)
+        {
             /* Connection failed or if multiple connection allowed; resume advertising. */
             ble_spp_server_advertise();
         }
@@ -199,7 +203,7 @@ ble_spp_server_gap_event(struct ble_gap_event *event, void *arg)
 
     case BLE_GAP_EVENT_SUBSCRIBE:
         MODLOG_DFLT(INFO, "subscribe event; conn_handle=%d attr_handle=%d "
-                    "reason=%d prevn=%d curn=%d previ=%d curi=%d\n",
+                          "reason=%d prevn=%d curn=%d previ=%d curi=%d\n",
                     event->subscribe.conn_handle,
                     event->subscribe.attr_handle,
                     event->subscribe.reason,
@@ -208,9 +212,10 @@ ble_spp_server_gap_event(struct ble_gap_event *event, void *arg)
                     event->subscribe.prev_indicate,
                     event->subscribe.cur_indicate);
         conn_handle_subs[event->subscribe.conn_handle] = true;
-        
+
         /* Send welcome message when client subscribes to notifications */
-        if (event->subscribe.cur_notify) {
+        if (event->subscribe.cur_notify)
+        {
             vTaskDelay(pdMS_TO_TICKS(50)); // Small delay
             send_welcome_message(event->subscribe.conn_handle);
         }
@@ -237,7 +242,8 @@ ble_spp_server_on_sync(void)
 
     /* Figure out address to use while advertising (no privacy for now) */
     rc = ble_hs_id_infer_auto(0, &own_addr_type);
-    if (rc != 0) {
+    if (rc != 0)
+    {
         MODLOG_DFLT(ERROR, "error determining address type; rc=%d\n", rc);
         return;
     }
@@ -256,21 +262,24 @@ ble_spp_server_on_sync(void)
 /* Function to send welcome message to client */
 static void send_welcome_message(uint16_t conn_handle)
 {
-    const char* welcome_msg = 
-        "****************\n"
-        "ESP32 Smart Door Lock\n"
-        "****************\n"
-        "Welcome!\n"
-        "Please enter password:\n"
+    const char *welcome_msg =
+        "◈═════◈═════◈\n"
+        "喂！旅行者！你终于回来了！\n"
+        "派蒙需要确认你的身份～\n"
+        "快说出口令，不然不让你进！\n"
+        "◈═════◈═════◈\n"
         "> ";
-    
+
     struct os_mbuf *txom;
-    txom = ble_hs_mbuf_from_flat((const uint8_t*)welcome_msg, strlen(welcome_msg));
-    
+    txom = ble_hs_mbuf_from_flat((const uint8_t *)welcome_msg, strlen(welcome_msg));
+
     int rc = ble_gatts_notify_custom(conn_handle, ble_spp_svc_gatt_read_val_handle, txom);
-    if (rc == 0) {
+    if (rc == 0)
+    {
         MODLOG_DFLT(INFO, "Welcome message sent successfully to conn_handle=%d", conn_handle);
-    } else {
+    }
+    else
+    {
         MODLOG_DFLT(INFO, "Error sending welcome message, rc=%d", rc);
     }
 }
@@ -284,10 +293,60 @@ void ble_spp_server_host_task(void *param)
     nimble_port_freertos_deinit();
 }
 
-/* Callback function for custom service */
-static int  ble_svc_gatt_handler(uint16_t conn_handle, uint16_t attr_handle, struct ble_gatt_access_ctxt *ctxt, void *arg)
+static void open_door(void)
 {
-    switch (ctxt->op) {
+    MODLOG_DFLT(INFO, "Opening door...");
+    vTaskDelay(pdMS_TO_TICKS(1000)); // Simulate door opening delay
+    MODLOG_DFLT(INFO, "Door opened successfully!");
+    // Here you can add code to control the door lock mechanism
+}
+static int password_check(uint16_t conn_handle, const char *received_password)
+{
+    const char *correct_password = "200296"; // 正确的密码
+    const char *response;
+
+    if (strcmp(received_password, correct_password) == 0)
+    {
+        response =
+            "\n"
+            "◈═════◈═════◈\n"
+            "🎉 口令正确！ (＾▽＾)\n"
+            "不愧是派蒙最好的伙伴！\n"
+            "正在开门...应急食品已就位！\n"
+            "◈═════◈═════◈\n";
+
+        MODLOG_DFLT(INFO, "Password correct");
+        open_door();
+    }
+    else
+    {
+        response = "\n"
+                   "◈═════◈═════◈\n"
+                   "❌ 喂！不对不对！(╯°□°)╯\n"
+                   "派蒙可不记得设过这个密码！\n"
+                   "再试一次，不然不给你晚饭吃！\n"
+                   "◈═════◈═════◈\n"
+                   "> ";
+        MODLOG_DFLT(INFO, "Password incorrect");
+    }
+
+    // 将结果通过 BLE 通知客户端
+    struct os_mbuf *txom;
+    txom = ble_hs_mbuf_from_flat((const uint8_t *)response, strlen(response));
+    int rc = ble_gatts_notify_custom(conn_handle, ble_spp_svc_gatt_read_val_handle, txom);
+    if (rc != 0)
+    {
+        MODLOG_DFLT(ERROR, "Failed to send response, rc=%d", rc);
+    }
+
+    return strcmp(received_password, correct_password) == 0;
+}
+
+/* Callback function for custom service */
+static int ble_svc_gatt_handler(uint16_t conn_handle, uint16_t attr_handle, struct ble_gatt_access_ctxt *ctxt, void *arg)
+{
+    switch (ctxt->op)
+    {
     case BLE_GATT_ACCESS_OP_READ_CHR:
         MODLOG_DFLT(INFO, "Callback for read");
         break;
@@ -295,10 +354,17 @@ static int  ble_svc_gatt_handler(uint16_t conn_handle, uint16_t attr_handle, str
     case BLE_GATT_ACCESS_OP_WRITE_CHR:
         MODLOG_DFLT(INFO, "Data received in write event,conn_handle = %x,attr_handle = %x", conn_handle, attr_handle);
         // Echo received data back to client for now
-        if (ctxt->om->om_len > 0) {
+        if (ctxt->om->om_len > 0)
+        {
             struct os_mbuf *txom;
             txom = ble_hs_mbuf_from_flat(ctxt->om->om_data, ctxt->om->om_len);
-            ble_gatts_notify_custom(conn_handle, ble_spp_svc_gatt_read_val_handle, txom);
+            // ble_gatts_notify_custom(conn_handle, ble_spp_svc_gatt_read_val_handle, txom);
+            // 将接收到的密码打印到终端
+            // MODLOG_DFLT(INFO, "Received data: %.*s", ctxt->om->om_len, (char *)ctxt->om->om_data);
+            // check if the password is correct
+            char received_password[20] = {0};
+            memcpy(received_password, ctxt->om->om_data, ctxt->om->om_len);
+            password_check(conn_handle, received_password);
         }
         break;
 
@@ -315,17 +381,16 @@ static const struct ble_gatt_svc_def new_ble_svc_gatt_defs[] = {
         /*** Service: SPP */
         .type = BLE_GATT_SVC_TYPE_PRIMARY,
         .uuid = BLE_UUID16_DECLARE(BLE_SVC_SPP_UUID16),
-        .characteristics = (struct ble_gatt_chr_def[])
-        { {
-                /* Support SPP service */
-                .uuid = BLE_UUID16_DECLARE(BLE_SVC_SPP_CHR_UUID16),
-                .access_cb = ble_svc_gatt_handler,
-                .val_handle = &ble_spp_svc_gatt_read_val_handle,
-                .flags = BLE_GATT_CHR_F_READ | BLE_GATT_CHR_F_WRITE | BLE_GATT_CHR_F_NOTIFY,
-            }, {
-                0, /* No more characteristics */
-            }
-        },
+        .characteristics = (struct ble_gatt_chr_def[]){{
+                                                           /* Support SPP service */
+                                                           .uuid = BLE_UUID16_DECLARE(BLE_SVC_SPP_CHR_UUID16),
+                                                           .access_cb = ble_svc_gatt_handler,
+                                                           .val_handle = &ble_spp_svc_gatt_read_val_handle,
+                                                           .flags = BLE_GATT_CHR_F_READ | BLE_GATT_CHR_F_WRITE | BLE_GATT_CHR_F_NOTIFY,
+                                                       },
+                                                       {
+                                                           0, /* No more characteristics */
+                                                       }},
     },
     {
         0, /* No more services. */
@@ -337,7 +402,8 @@ gatt_svr_register_cb(struct ble_gatt_register_ctxt *ctxt, void *arg)
 {
     char buf[BLE_UUID_STR_LEN];
 
-    switch (ctxt->op) {
+    switch (ctxt->op)
+    {
     case BLE_GATT_REGISTER_OP_SVC:
         MODLOG_DFLT(DEBUG, "registered service %s with handle=%d\n",
                     ble_uuid_to_str(ctxt->svc.svc_def->uuid, buf),
@@ -346,7 +412,7 @@ gatt_svr_register_cb(struct ble_gatt_register_ctxt *ctxt, void *arg)
 
     case BLE_GATT_REGISTER_OP_CHR:
         MODLOG_DFLT(DEBUG, "registering characteristic %s with "
-                    "def_handle=%d val_handle=%d\n",
+                           "def_handle=%d val_handle=%d\n",
                     ble_uuid_to_str(ctxt->chr.chr_def->uuid, buf),
                     ctxt->chr.def_handle,
                     ctxt->chr.val_handle);
@@ -372,52 +438,62 @@ int gatt_svr_init(void)
 
     rc = ble_gatts_count_cfg(new_ble_svc_gatt_defs);
 
-    if (rc != 0) {
+    if (rc != 0)
+    {
         return rc;
     }
 
     rc = ble_gatts_add_svcs(new_ble_svc_gatt_defs);
-    if (rc != 0) {
+    if (rc != 0)
+    {
         return rc;
     }
 
     return 0;
 }
 
-
 void ble_server_uart_task(void *pvParameters)
 {
     MODLOG_DFLT(INFO, "BLE server UART_task started\n");
     uart_event_t event;
     int rc = 0;
-    for (;;) {
-        //Waiting for UART event.
-        if (xQueueReceive(spp_common_uart_queue, (void * )&event, (TickType_t)portMAX_DELAY))            {
-            switch (event.type) {
-            //Event of UART receiving data
+    for (;;)
+    {
+        // Waiting for UART event.
+        if (xQueueReceive(spp_common_uart_queue, (void *)&event, (TickType_t)portMAX_DELAY))
+        {
+            switch (event.type)
+            {
+            // Event of UART receiving data
             case UART_DATA:
-                if (event.size) {
+                if (event.size)
+                {
                     uint8_t *ntf;
                     ntf = (uint8_t *)malloc(sizeof(uint8_t) * event.size);
                     memset(ntf, 0x00, event.size);
                     uart_read_bytes(UART_NUM_0, ntf, event.size, portMAX_DELAY);
 
-                    for (int i = 0; i <= CONFIG_BT_NIMBLE_MAX_CONNECTIONS; i++) {
+                    for (int i = 0; i <= CONFIG_BT_NIMBLE_MAX_CONNECTIONS; i++)
+                    {
                         /* Check if client has subscribed to notifications */
-                        if (conn_handle_subs[i]) {
+                        if (conn_handle_subs[i])
+                        {
                             struct os_mbuf *txom;
                             txom = ble_hs_mbuf_from_flat(ntf, event.size);
                             rc = ble_gatts_notify_custom(i, ble_spp_svc_gatt_read_val_handle,
                                                          txom);
-                            if (rc == 0) {
+                            if (rc == 0)
+                            {
                                 MODLOG_DFLT(INFO, "Notification sent successfully");
-                            } else {
+                            }
+                            else
+                            {
                                 MODLOG_DFLT(INFO, "Error in sending notification rc = %d", rc);
                             }
                         }
                     }
 
-		    free(ntf);
+                    free(ntf);
                 }
                 break;
             default:
@@ -438,37 +514,38 @@ static void ble_spp_uart_init(void)
         .rx_flow_ctrl_thresh = 122,
         .source_clk = UART_SCLK_DEFAULT,
     };
-    //Install UART driver, and get the queue.
+    // Install UART driver, and get the queue.
     uart_driver_install(UART_NUM_0, 4096, 8192, 10, &spp_common_uart_queue, 0);
-    //Set UART parameters
+    // Set UART parameters
     uart_param_config(UART_NUM_0, &uart_config);
-    //Set UART pins
+    // Set UART pins
     uart_set_pin(UART_NUM_0, UART_PIN_NO_CHANGE, UART_PIN_NO_CHANGE, UART_PIN_NO_CHANGE, UART_PIN_NO_CHANGE);
     xTaskCreate(ble_server_uart_task, "uTask", 4096, (void *)UART_NUM_0, 8, NULL);
 }
 
-
-void
-app_main(void)
+void app_main(void)
 {
     int rc;
 
     /* Initialize NVS — it is used to store PHY calibration data */
     esp_err_t ret = nvs_flash_init();
-    if (ret == ESP_ERR_NVS_NO_FREE_PAGES || ret == ESP_ERR_NVS_NEW_VERSION_FOUND) {
+    if (ret == ESP_ERR_NVS_NO_FREE_PAGES || ret == ESP_ERR_NVS_NEW_VERSION_FOUND)
+    {
         ESP_ERROR_CHECK(nvs_flash_erase());
         ret = nvs_flash_init();
     }
     ESP_ERROR_CHECK(ret);
 
     ret = nimble_port_init();
-    if (ret != ESP_OK) {
+    if (ret != ESP_OK)
+    {
         MODLOG_DFLT(ERROR, "Failed to init nimble %d \n", ret);
         return;
     }
 
     /* Initialize connection_handle array */
-    for (int i = 0; i <= CONFIG_BT_NIMBLE_MAX_CONNECTIONS; i++) {
+    for (int i = 0; i <= CONFIG_BT_NIMBLE_MAX_CONNECTIONS; i++)
+    {
         conn_handle_subs[i] = false;
     }
 
