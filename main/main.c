@@ -23,6 +23,7 @@ int gatt_svr_register(void);
 QueueHandle_t spp_common_uart_queue = NULL;
 static bool conn_handle_subs[CONFIG_BT_NIMBLE_MAX_CONNECTIONS + 1];
 static uint16_t ble_spp_svc_gatt_read_val_handle;
+static void send_welcome_message(uint16_t conn_handle);
 
 void ble_store_config_init(void);
 
@@ -150,6 +151,10 @@ ble_spp_server_gap_event(struct ble_gap_event *event, void *arg)
             rc = ble_gap_conn_find(event->link_estab.conn_handle, &desc);
             assert(rc == 0);
             ble_spp_server_print_conn_desc(&desc);
+            
+            /* Send welcome message when connection is established */
+            vTaskDelay(pdMS_TO_TICKS(100)); // Small delay to ensure connection is ready
+            send_welcome_message(event->link_estab.conn_handle);
         }
         MODLOG_DFLT(INFO, "\n");
         if (event->link_estab.status != 0 || CONFIG_BT_NIMBLE_MAX_CONNECTIONS > 1) {
@@ -203,6 +208,12 @@ ble_spp_server_gap_event(struct ble_gap_event *event, void *arg)
                     event->subscribe.prev_indicate,
                     event->subscribe.cur_indicate);
         conn_handle_subs[event->subscribe.conn_handle] = true;
+        
+        /* Send welcome message when client subscribes to notifications */
+        if (event->subscribe.cur_notify) {
+            vTaskDelay(pdMS_TO_TICKS(50)); // Small delay
+            send_welcome_message(event->subscribe.conn_handle);
+        }
         return 0;
 
     default:
@@ -242,6 +253,28 @@ ble_spp_server_on_sync(void)
     ble_spp_server_advertise();
 }
 
+/* Function to send welcome message to client */
+static void send_welcome_message(uint16_t conn_handle)
+{
+    const char* welcome_msg = 
+        "****************\n"
+        "ESP32 Smart Door Lock\n"
+        "****************\n"
+        "Welcome!\n"
+        "Please enter password:\n"
+        "> ";
+    
+    struct os_mbuf *txom;
+    txom = ble_hs_mbuf_from_flat((const uint8_t*)welcome_msg, strlen(welcome_msg));
+    
+    int rc = ble_gatts_notify_custom(conn_handle, ble_spp_svc_gatt_read_val_handle, txom);
+    if (rc == 0) {
+        MODLOG_DFLT(INFO, "Welcome message sent successfully to conn_handle=%d", conn_handle);
+    } else {
+        MODLOG_DFLT(INFO, "Error sending welcome message, rc=%d", rc);
+    }
+}
+
 void ble_spp_server_host_task(void *param)
 {
     MODLOG_DFLT(INFO, "BLE Host Task Started");
@@ -261,6 +294,12 @@ static int  ble_svc_gatt_handler(uint16_t conn_handle, uint16_t attr_handle, str
 
     case BLE_GATT_ACCESS_OP_WRITE_CHR:
         MODLOG_DFLT(INFO, "Data received in write event,conn_handle = %x,attr_handle = %x", conn_handle, attr_handle);
+        // Echo received data back to client for now
+        if (ctxt->om->om_len > 0) {
+            struct os_mbuf *txom;
+            txom = ble_hs_mbuf_from_flat(ctxt->om->om_data, ctxt->om->om_len);
+            ble_gatts_notify_custom(conn_handle, ble_spp_svc_gatt_read_val_handle, txom);
+        }
         break;
 
     default:
@@ -464,7 +503,7 @@ app_main(void)
     assert(rc == 0);
 
     /* Set the default device name. */
-    rc = ble_svc_gap_device_name_set("nimble-ble-spp-svr");
+    rc = ble_svc_gap_device_name_set("ESP32_BLE_LOCK");
     assert(rc == 0);
 
     /* XXX Need to have template for store */
