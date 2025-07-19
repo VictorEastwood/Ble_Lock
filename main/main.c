@@ -296,7 +296,9 @@ void ble_spp_server_host_task(void *param)
 static void open_door(void)
 {
     MODLOG_DFLT(INFO, "Opening door...");
+    //Servo Angle 1
     vTaskDelay(pdMS_TO_TICKS(1000)); // Simulate door opening delay
+    //Servo Angle 0
     MODLOG_DFLT(INFO, "Door opened successfully!");
     // Here you can add code to control the door lock mechanism
 }
