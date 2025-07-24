@@ -4,8 +4,9 @@
  * SPDX-License-Identifier: Unlicense OR CC0-1.0
  */
 
-#ifndef H_BLESPPSERVER_
-#define H_BLESPPSERVER_
+#ifndef MAIN_H
+#define MAIN_H
+
 
 #include <stdbool.h>
 #include "nimble/ble.h"

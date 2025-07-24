@@ -14,7 +14,7 @@
 #include "console/console.h"
 #include "services/gap/ble_svc_gap.h"
 #include "services/gatt/ble_svc_gatt.h"
-#include "ble_spp_server.h"
+#include "main.h"
 #include "driver/uart.h"
 #include "driver/ledc.h"
 
