@@ -16,6 +16,15 @@
 #include "services/gatt/ble_svc_gatt.h"
 #include "ble_spp_server.h"
 #include "driver/uart.h"
+#include "driver/ledc.h"
+
+#define LEDC_TIMER              LEDC_TIMER_0
+#define LEDC_MODE               LEDC_LOW_SPEED_MODE
+#define LEDC_OUTPUT_IO          (2) // Define the output GPIO
+#define LEDC_CHANNEL            LEDC_CHANNEL_0
+#define LEDC_DUTY_RES           LEDC_TIMER_14_BIT // Set duty resolution to 14 bits
+#define LEDC_DUTY               (1229) // Set duty to 50%. (2 ** 14) * 50% = 8192
+#define LEDC_FREQUENCY          (50) // Frequency in Hertz. Set frequency at 50 Hz
 
 static int ble_spp_server_gap_event(struct ble_gap_event *event, void *arg);
 static uint8_t own_addr_type;
@@ -23,10 +32,39 @@ int gatt_svr_register(void);
 QueueHandle_t spp_common_uart_queue = NULL;
 static bool conn_handle_subs[CONFIG_BT_NIMBLE_MAX_CONNECTIONS + 1];
 static uint16_t ble_spp_svc_gatt_read_val_handle;
-static void send_welcome_message(uint16_t conn_handle);
-
+static void send_welcome_message(uint16_t conn_handle);// Flag to indicate if the door is locked or not
 void ble_store_config_init(void);
+static void local_ledc_init(void)
+{
+    // Prepare and then apply the LEDC PWM timer configuration
+    ledc_timer_config_t ledc_timer = {
+        .speed_mode       = LEDC_MODE,
+        .duty_resolution  = LEDC_DUTY_RES,
+        .timer_num        = LEDC_TIMER,
+        .freq_hz          = LEDC_FREQUENCY,  // Set output frequency at 4 kHz
+        .clk_cfg          = LEDC_AUTO_CLK
+    };
+    ESP_ERROR_CHECK(ledc_timer_config(&ledc_timer));
 
+    // Prepare and then apply the LEDC PWM channel configuration
+    ledc_channel_config_t ledc_channel = {
+        .speed_mode     = LEDC_MODE,
+        .channel        = LEDC_CHANNEL,
+        .timer_sel      = LEDC_TIMER,
+        .intr_type      = LEDC_INTR_DISABLE,
+        .gpio_num       = LEDC_OUTPUT_IO,
+        .duty           = 0, // Set duty to 0%
+        .hpoint         = 0
+    };
+    ESP_ERROR_CHECK(ledc_channel_config(&ledc_channel));
+}
+static void local_ledc_set_duty(uint32_t duty)
+{
+    // Set the duty cycle for the LEDC channel
+    ESP_ERROR_CHECK(ledc_set_duty(LEDC_MODE, LEDC_CHANNEL, duty));
+    // Update the LEDC channel with the new duty cycle
+    ESP_ERROR_CHECK(ledc_update_duty(LEDC_MODE, LEDC_CHANNEL));
+}
 /**
  * Logs information about a connection to the console.
  */
@@ -296,9 +334,11 @@ void ble_spp_server_host_task(void *param)
 static void open_door(void)
 {
     MODLOG_DFLT(INFO, "Opening door...");
+    local_ledc_set_duty(1229-400);
     //Servo Angle 1
     vTaskDelay(pdMS_TO_TICKS(1000)); // Simulate door opening delay
     //Servo Angle 0
+    local_ledc_set_duty(1229);
     MODLOG_DFLT(INFO, "Door opened successfully!");
     // Here you can add code to control the door lock mechanism
 }
@@ -358,8 +398,9 @@ static int ble_svc_gatt_handler(uint16_t conn_handle, uint16_t attr_handle, stru
         // Echo received data back to client for now
         if (ctxt->om->om_len > 0)
         {
-            struct os_mbuf *txom;
-            txom = ble_hs_mbuf_from_flat(ctxt->om->om_data, ctxt->om->om_len);
+            // struct os_mbuf *txom;
+            // txom = ble_hs_mbuf_from_flat(ctxt->om->om_data, ctxt->om->om_len);
+            ble_hs_mbuf_from_flat(ctxt->om->om_data, ctxt->om->om_len);
             // ble_gatts_notify_custom(conn_handle, ble_spp_svc_gatt_read_val_handle, txom);
             // 将接收到的密码打印到终端
             // MODLOG_DFLT(INFO, "Received data: %.*s", ctxt->om->om_len, (char *)ctxt->om->om_data);
@@ -531,6 +572,8 @@ void app_main(void)
 
     /* Initialize NVS — it is used to store PHY calibration data */
     esp_err_t ret = nvs_flash_init();
+    local_ledc_init();
+    local_ledc_set_duty(1229);
     if (ret == ESP_ERR_NVS_NO_FREE_PAGES || ret == ESP_ERR_NVS_NEW_VERSION_FOUND)
     {
         ESP_ERROR_CHECK(nvs_flash_erase());
